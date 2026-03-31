@@ -40,44 +40,30 @@ if (!$camHost) {
     exit;
 }
 
-// Try endpoints in order until one returns a JPEG
-$endpoints = [
-    "http://{$camHost}:{$camPort}/cgi-bin/set.cgi?pelco.controller.snapshot=1",
-    "http://{$camHost}:{$camPort}/jpg/image.jpg",
-    "http://{$camHost}:{$camPort}/snap.jpg",
+$ch = curl_init("http://{$camHost}:{$camPort}/cgi-bin/set.cgi?pelco.controller.snapshot=1");
+$opts = [
+    CURLOPT_HTTPGET        => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_TIMEOUT        => 10,
+    CURLOPT_CONNECTTIMEOUT => 5,
+    CURLOPT_SSL_VERIFYPEER => false,
+    CURLOPT_SSL_VERIFYHOST => false,
 ];
-
-$image = false; $httpCode = 0; $ct = ''; $curlErr = '';
-
-foreach ($endpoints as $url) {
-    $ch = curl_init($url);
-    $opts = [
-        CURLOPT_HTTPGET        => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT        => 10,
-        CURLOPT_CONNECTTIMEOUT => 5,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ];
-    if ($camPass) {
-        $opts[CURLOPT_USERPWD]  = "{$username}:{$camPass}";
-        $opts[CURLOPT_HTTPAUTH] = CURLAUTH_BASIC;
-    }
-    curl_setopt_array($ch, $opts);
-
-    $image    = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $ct       = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?? '';
-    $curlErr  = curl_error($ch);
-    curl_close($ch);
-
-    if ($image !== false && $httpCode === 200 && strpos($ct, 'image/') === 0) break;
-    $image = false; // try next
+if ($camPass) {
+    $opts[CURLOPT_USERPWD]  = "{$username}:{$camPass}";
+    $opts[CURLOPT_HTTPAUTH] = CURLAUTH_BASIC;
 }
+curl_setopt_array($ch, $opts);
 
-if ($image === false) {
+$image    = curl_exec($ch);
+$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$ct       = curl_getinfo($ch, CURLINFO_CONTENT_TYPE) ?? '';
+$curlErr  = curl_error($ch);
+curl_close($ch);
+
+if ($image === false || $httpCode !== 200 || strpos($ct, 'image/') !== 0) {
     http_response_code(502);
-    echo json_encode(['error' => $curlErr ?: "No snapshot endpoint returned an image (last HTTP {$httpCode}, {$ct})"]);
+    echo json_encode(['error' => $curlErr ?: "Camera returned HTTP {$httpCode} ({$ct})"]);
     exit;
 }
 
