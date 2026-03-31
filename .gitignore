@@ -8,3 +8,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Preset snapshots (server-local files, not tracked)
+snapshots/*.jpg

@@ -64,12 +64,11 @@ body {
 /* ── Layout ── */
 .layout-top {
   display: grid;
-  grid-template-columns: 260px 1fr 280px;
+  grid-template-columns: 260px 1fr;
   gap: 12px;
   align-items: start;
   margin-bottom: 12px;
 }
-@media (max-width: 900px) { .layout-top { grid-template-columns: 260px 1fr; } }
 @media (max-width: 700px) { .layout-top { grid-template-columns: 1fr; } }
 
 /* ── Inputs ── */
@@ -142,7 +141,7 @@ input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; heigh
 .axis-btn  { flex: 1; padding: 11px 6px; font-size: 0.82rem; font-weight: 600; }
 
 /* ── Presets ── */
-.presets-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.presets-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 
 .preset-slot {
   background: var(--surface2); border: 1px solid var(--border);
@@ -158,7 +157,11 @@ input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; heigh
   background: var(--surface3); border: 1px solid var(--border);
   color: var(--text); cursor: pointer; transition: all 0.12s;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  user-select: none;
+  user-select: none; overflow: hidden; position: relative;
+}
+.preset-thumb {
+  width: 100%; aspect-ratio: 16/9; object-fit: cover;
+  border-radius: 4px; display: block; margin-bottom: 2px;
 }
 .preset-go:hover:not(:disabled) { border-color: var(--success); color: var(--success); }
 .preset-go:active:not(:disabled) { transform: scale(0.96); }
@@ -208,25 +211,10 @@ kbd {
 
 /* ── Preset-only mode ── */
 body.preset-mode #controlsCol,
-body.preset-mode #videoCol,
 body.preset-mode #statusBar { display: none; }
 body.preset-mode .layout-top { grid-template-columns: 1fr; }
 body.preset-mode .presets-grid { grid-template-columns: repeat(4, 1fr); }
 
-/* ── Video player ── */
-.video-wrap {
-  position: relative; background: #000; border-radius: 6px; overflow: hidden;
-  aspect-ratio: 16/9;
-}
-#video_box {
-  width: 100%; height: 100%; display: block; object-fit: contain;
-}
-.video-overlay {
-  position: absolute; inset: 0; display: flex; align-items: center;
-  justify-content: center; background: rgba(0,0,0,0.6); flex-direction: column; gap: 10px;
-}
-.video-overlay.hidden { display: none; }
-.video-status { font-size: 0.75rem; color: var(--text-muted); text-align: center; }
 </style>
 </head>
 <body>
@@ -360,27 +348,6 @@ body.preset-mode .presets-grid { grid-template-columns: repeat(4, 1fr); }
         <kbd>F</kbd> Auto Focus &nbsp;
         <kbd>H</kbd> Home &nbsp;
         <kbd>1–9</kbd> Recall Preset
-      </div>
-    </div>
-
-    <!-- ── MIDDLE: Video Feed ── -->
-    <div id="videoCol" class="card video-card" style="margin-bottom:0">
-      <div class="card-title">
-        Live Feed
-        <div style="display:flex;gap:6px">
-          <select id="vidChannel" class="btn btn-sm" style="padding:3px 6px;font-size:0.68rem">
-            <option value="0">Stream 1</option>
-            <option value="1">Stream 2</option>
-          </select>
-          <button class="btn btn-sm btn-success" id="vidStartBtn" onclick="startVideo()">Start</button>
-          <button class="btn btn-sm btn-danger"  id="vidStopBtn"  onclick="stopVideo()" style="display:none">Stop</button>
-        </div>
-      </div>
-      <div class="video-wrap">
-        <video id="video_box" autoplay muted playsinline></video>
-        <div class="video-overlay" id="vidOverlay">
-          <div class="video-status" id="vidStatus">Press Start to begin streaming</div>
-        </div>
       </div>
     </div>
 
@@ -656,6 +623,27 @@ function updateSRTLabel(enabled) {
 // ─────────────────────────────────────────────
 // Wiper
 // ─────────────────────────────────────────────
+// Snapshot
+// ─────────────────────────────────────────────
+function snapHeaders() {
+  const h = { 'X-Cam-Host': camIP, 'X-Cam-Port': String(camPort), 'X-Cam-Username': camUser };
+  if (token)   h['X-Cam-Token'] = token;
+  if (camPass) h['X-Cam-Pass']  = camPass;
+  return h;
+}
+
+async function saveSnapshot(num) {
+  const res = await fetch(`snapshot.php?preset=${num}`, { headers: snapHeaders() });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data.url;
+}
+
+async function deleteSnapshot(num) {
+  await fetch(`snapshot.php?preset=${num}&delete=1`, { headers: snapHeaders() });
+}
+
+// ─────────────────────────────────────────────
 async function wiperCmd(mode) {
   const queryMap = {
     sngl: 'pelco.controller.snglwiper=1',
@@ -708,6 +696,8 @@ async function savePreset(num) {
   try {
     await apiPost('ptzctrl', { Cmd:'ReqSetPTZFPreset', Content:{ PresetInfo:{ Action:'Set', Name:label, Number:num } } });
     presets[num] = { name: label };
+    setStatus(`Saved preset ${num}: "${label}" — capturing snapshot…`, 'ok');
+    try { await saveSnapshot(num); } catch (_) {}
     renderPresets();
     setStatus(`Saved preset ${num}: "${label}"`, 'ok');
   } catch (e) { setStatus('Save preset error: ' + e.message, 'err'); }
@@ -718,6 +708,7 @@ async function deletePreset(num) {
   try {
     await apiPost('ptzctrl', { Cmd:'ReqSetPTZFPreset', Content:{ PresetInfo:{ Action:'Delete', Number:num } } });
     delete presets[num];
+    deleteSnapshot(num);
     renderPresets();
     setStatus(`Deleted preset ${num}`, 'ok');
   } catch (e) { setStatus('Delete preset error: ' + e.message, 'err'); }
@@ -753,6 +744,7 @@ function renderPresets() {
     el.className = 'preset-slot' + (saved ? ' active' : '');
     el.innerHTML = `
       <button class="preset-go" onclick="callPreset(${i})" ${!saved?'disabled':''}>
+        ${saved ? `<img class="preset-thumb" src="snapshots/preset_${i}.jpg" onerror="this.style.display='none'" alt="">` : ''}
         <span class="preset-go-name">${saved ? escHtml(saved.name) : '—'}</span>
       </button>
       <div class="preset-edit${editMode ? ' visible' : ''}">
@@ -856,129 +848,6 @@ renderPresets();
   }
 })();
 
-// ─────────────────────────────────────────────
-// WebSocket Video Player
-// ─────────────────────────────────────────────
-let wsVideo       = null;
-let wsMs          = null;
-let wsVideoBuf    = null;
-let wsVideoQ      = [];
-let wsFirstAppend = true;
-let wsCachedSeg   = 2;
-let wsCheckInterval = null;
-
-const VIDEO_TYPES = [
-  'video/mp4; codecs="avc1.64001E"',
-  'video/mp4; codecs="hvc1.1.1.L156.B0"',
-];
-
-function vidSetStatus(msg) {
-  const el = document.getElementById('vidStatus');
-  if (el) el.textContent = msg;
-}
-
-async function startVideo() {
-  const chan = +document.getElementById('vidChannel').value;
-
-  vidSetStatus('Checking stream format…');
-  let encType = 0;
-  try {
-    const res = await apiPost('av', { Cmd: 'ReqGetEncodeInfo' });
-    if (res.Content?.EncodeInfo?.[chan]?.VideoCompression === 2) encType = 1;
-  } catch (_) {}
-
-  const mimeType = VIDEO_TYPES[encType];
-  if (!('MediaSource' in window) || !MediaSource.isTypeSupported(mimeType)) {
-    vidSetStatus('Codec not supported in this browser.');
-    return;
-  }
-
-  document.getElementById('vidStartBtn').style.display = 'none';
-  document.getElementById('vidStopBtn').style.display  = 'inline-flex';
-  document.getElementById('vidOverlay').classList.remove('hidden');
-  vidSetStatus('Connecting…');
-
-  const video = document.getElementById('video_box');
-  wsMs = new MediaSource();
-  video.src = URL.createObjectURL(wsMs);
-
-  function onSourceOpen() {
-    wsMs.removeEventListener('sourceopen', onSourceOpen);
-
-    try {
-      wsVideoBuf = wsMs.addSourceBuffer(mimeType);
-    } catch(e) {
-      vidSetStatus('Failed to create source buffer: ' + e.message);
-      return;
-    }
-    if (wsVideoBuf.mode === 'segments') wsVideoBuf.mode = 'sequence';
-    wsVideoQ      = [];
-    wsFirstAppend = true;
-
-    wsVideoBuf.addEventListener('updateend', () => {
-      if (wsVideoQ.length > 0 && !wsVideoBuf.updating) {
-        try { wsVideoBuf.appendBuffer(wsVideoQ.shift()); } catch(_) {}
-      }
-    });
-
-    const wsUrl = 'ws://' + camIP + '/';
-    vidSetStatus('Connecting to ' + wsUrl);
-    wsVideo = new WebSocket(wsUrl, 'ws-streaming');
-    wsVideo.binaryType = 'arraybuffer';
-
-    wsVideo.onopen = () => {
-      vidSetStatus('Connected — starting stream…');
-      setTimeout(() => wsVideo.send('startplay:channel=' + chan + ',maxframes=' + wsCachedSeg + '#'), 100);
-    };
-
-    wsVideo.onmessage = (msg) => {
-      const arr = new Uint8Array(msg.data);
-      if (arr[0] !== 1) return; // skip audio
-      const payload = arr.subarray(1);
-      document.getElementById('vidOverlay').classList.add('hidden');
-      wsVideoQ.push(payload);
-      if (wsFirstAppend) {
-        if (wsVideoQ.length >= wsCachedSeg) {
-          try { wsVideoBuf.appendBuffer(wsVideoQ.shift()); wsFirstAppend = false; } catch(_) {}
-        }
-      } else if (!wsVideoBuf.updating) {
-        try { wsVideoBuf.appendBuffer(wsVideoQ.shift()); } catch(_) {}
-      }
-    };
-
-    wsVideo.onerror = (e) => {
-      vidSetStatus('WebSocket error — is the camera reachable?');
-      document.getElementById('vidOverlay').classList.remove('hidden');
-    };
-
-    wsVideo.onclose = (e) => {
-      vidSetStatus('Stream closed (code ' + e.code + '). Press Start to reconnect.');
-      document.getElementById('vidOverlay').classList.remove('hidden');
-      document.getElementById('vidStartBtn').style.display = 'inline-flex';
-      document.getElementById('vidStopBtn').style.display  = 'none';
-      if (wsCheckInterval) { clearInterval(wsCheckInterval); wsCheckInterval = null; }
-      wsVideo = null;
-    };
-
-    wsCheckInterval = setInterval(() => {
-      if (!video.buffered.length) return;
-      const end = video.buffered.end(video.buffered.length - 1);
-      if (end - video.currentTime > 3) video.currentTime = end - 0.5;
-    }, 1000);
-  }
-
-  wsMs.addEventListener('sourceopen', onSourceOpen);
-  video.addEventListener('durationchange', function onDC() { video.play().catch(()=>{}); });
-}
-
-function stopVideo() {
-  if (wsVideo) { try { wsVideo.send('stopplay'); wsVideo.close(); } catch(_) {} wsVideo = null; }
-  if (wsCheckInterval) { clearInterval(wsCheckInterval); wsCheckInterval = null; }
-  document.getElementById('vidStartBtn').style.display = 'inline-flex';
-  document.getElementById('vidStopBtn').style.display  = 'none';
-  document.getElementById('vidOverlay').classList.remove('hidden');
-  vidSetStatus('Press Start to begin streaming');
-}
 </script>
 </body>
 </html>

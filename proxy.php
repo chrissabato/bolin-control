@@ -8,7 +8,7 @@
  * Requires: PHP with cURL extension (standard on most LAMP stacks).
  */
 
-header('Content-Type: application/json');
+// Content-Type is set after we receive the camera response
 
 // ── Validate path ────────────────────────────────────────────────────────────
 $path  = $_GET['path']  ?? '';
@@ -91,15 +91,24 @@ if ($isCgi) {
     ]);
 }
 
-$response = curl_exec($ch);
-$httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-$curlError = curl_error($ch);
+$response    = curl_exec($ch);
+$httpCode    = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+$contentType = curl_getinfo($ch, CURLINFO_CONTENT_TYPE);
+$curlError   = curl_error($ch);
 curl_close($ch);
 
 if ($response === false) {
+    header('Content-Type: application/json');
     http_response_code(502);
     echo json_encode(['error' => 'Camera unreachable: ' . $curlError]);
     exit;
+}
+
+// Pass image responses through as-is; everything else is JSON
+if ($contentType && strpos($contentType, 'image/') === 0) {
+    header('Content-Type: ' . $contentType);
+} else {
+    header('Content-Type: application/json');
 }
 
 http_response_code($httpCode ?: 502);
