@@ -691,7 +691,7 @@ async function savePreset(num) {
     await apiPost('ptzctrl', { Cmd:'ReqSetPTZFPreset', Content:{ PresetInfo:{ Action:'Set', Name:label, Number:num } } });
     presets[num] = { name: label };
     setStatus(`Saved preset ${num}: "${label}" — capturing snapshot…`, 'ok');
-    try { await saveSnapshot(num); } catch (_) {}
+    try { await saveSnapshot(num); localStorage.setItem(`ptz_snap_ts_${num}`, Date.now()); } catch (_) {}
     renderPresets();
     setStatus(`Saved preset ${num}: "${label}"`, 'ok');
   } catch (e) { setStatus('Save preset error: ' + e.message, 'err'); }
@@ -703,6 +703,7 @@ async function deletePreset(num) {
     await apiPost('ptzctrl', { Cmd:'ReqSetPTZFPreset', Content:{ PresetInfo:{ Action:'Delete', Number:num } } });
     delete presets[num];
     deleteSnapshot(num);
+    localStorage.removeItem(`ptz_snap_ts_${num}`);
     renderPresets();
     setStatus(`Deleted preset ${num}`, 'ok');
   } catch (e) { setStatus('Delete preset error: ' + e.message, 'err'); }
@@ -738,7 +739,7 @@ function renderPresets() {
     el.className = 'preset-slot' + (saved ? ' active' : '');
     el.innerHTML = `
       <button class="preset-go" onclick="callPreset(${i})" ${!saved?'disabled':''}>
-        ${saved ? `<img class="preset-thumb" src="snapshots/preset_${i}.jpg" onerror="this.style.display='none'" alt="">` : ''}
+        ${saved ? `<img class="preset-thumb" src="snapshots/preset_${i}.jpg?t=${localStorage.getItem(`ptz_snap_ts_${i}`) || 0}" onerror="this.style.display='none'" alt="">` : ''}
         <span class="preset-go-name">${saved ? escHtml(saved.name) : '—'}</span>
       </button>
       <div class="preset-edit${editMode ? ' visible' : ''}">
