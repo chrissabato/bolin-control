@@ -146,7 +146,10 @@ input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; heigh
 .preset-slot {
   border-radius: 8px; padding: 5px;
   display: flex; flex-direction: column; gap: 4px;
+  cursor: grab; transition: opacity 0.15s, outline 0.1s;
 }
+.preset-slot.dragging  { opacity: 0.35; cursor: grabbing; }
+.preset-slot.drag-over { outline: 2px solid var(--accent); border-radius: 8px; }
 
 /* Go button: full width, shows preset name + optional thumbnail */
 .preset-go {
@@ -730,24 +733,69 @@ function toggleEditMode() {
   });
 }
 
+// ─────────────────────────────────────────────
+// Preset display order (stored in localStorage)
+// ─────────────────────────────────────────────
+function getPresetOrder() {
+  try {
+    const s = localStorage.getItem('ptz_preset_order');
+    if (s) return JSON.parse(s);
+  } catch (_) {}
+  return Array.from({length: 16}, (_, i) => i + 1);
+}
+function savePresetOrder(order) {
+  localStorage.setItem('ptz_preset_order', JSON.stringify(order));
+}
+
+let dragSrcIdx = null;
+
 function renderPresets() {
-  const grid = document.getElementById('presetsGrid');
+  const grid  = document.getElementById('presetsGrid');
+  const order = getPresetOrder();
   grid.innerHTML = '';
-  for (let i = 1; i <= 16; i++) {
-    const saved = presets[i];
-    const el = document.createElement('div');
-    el.className = 'preset-slot' + (saved ? ' active' : '');
-    el.innerHTML = `
-      <button class="preset-go" onclick="callPreset(${i})" ${!saved?'disabled':''}>
-        ${saved ? `<img class="preset-thumb" src="snapshots/preset_${i}.jpg?t=${localStorage.getItem(`ptz_snap_ts_${i}`) || 0}" onerror="this.style.display='none'" alt="">` : ''}
+
+  order.forEach((presetNum, idx) => {
+    const saved = presets[presetNum];
+    const ts    = localStorage.getItem(`ptz_snap_ts_${presetNum}`) || 0;
+    const el    = document.createElement('div');
+    el.className  = 'preset-slot' + (saved ? ' active' : '');
+    el.draggable  = true;
+    el.innerHTML  = `
+      <button class="preset-go" onclick="callPreset(${presetNum})" ${!saved?'disabled':''}>
+        ${saved ? `<img class="preset-thumb" src="snapshots/preset_${presetNum}.jpg?t=${ts}" onerror="this.style.display='none'" alt="">` : ''}
         <span class="preset-go-name">${saved ? escHtml(saved.name) : '—'}</span>
       </button>
       <div class="preset-edit${editMode ? ' visible' : ''}">
-        <button class="btn"            onclick="savePreset(${i})">Set</button>
-        <button class="btn btn-danger" onclick="deletePreset(${i})" ${!saved?'disabled':''}>Del</button>
+        <button class="btn"            onclick="savePreset(${presetNum})">Set</button>
+        <button class="btn btn-danger" onclick="deletePreset(${presetNum})" ${!saved?'disabled':''}>Del</button>
       </div>`;
+
+    el.addEventListener('dragstart', e => {
+      dragSrcIdx = idx;
+      el.classList.add('dragging');
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragover', e => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', e => {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      if (dragSrcIdx === null || dragSrcIdx === idx) return;
+      const newOrder = getPresetOrder();
+      const [moved] = newOrder.splice(dragSrcIdx, 1);
+      newOrder.splice(idx, 0, moved);
+      savePresetOrder(newOrder);
+      dragSrcIdx = null;
+      renderPresets();
+    });
+
     grid.appendChild(el);
-  }
+  });
 }
 
 // ─────────────────────────────────────────────
