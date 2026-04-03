@@ -144,17 +144,14 @@ input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; heigh
 .presets-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 
 .preset-slot {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 5px;
+  background: var(--surface2); border-radius: 8px; padding: 5px;
   display: flex; flex-direction: column; gap: 4px;
-  transition: border-color 0.2s;
 }
-.preset-slot.active { border-color: var(--accent); }
 
-/* Go button: full width, shows preset number + name */
+/* Go button: full width, shows preset name + optional thumbnail */
 .preset-go {
   width: 100%; padding: 8px 4px; border-radius: 6px;
-  background: var(--surface3); border: 1px solid var(--border);
+  background: var(--surface3); border: none;
   color: var(--text); cursor: pointer; transition: all 0.12s;
   display: flex; flex-direction: column; align-items: center; gap: 2px;
   user-select: none; overflow: hidden; position: relative;
@@ -163,14 +160,11 @@ input[type=range] { flex: 1; accent-color: var(--accent); cursor: pointer; heigh
   width: 100%; aspect-ratio: 16/9; object-fit: cover;
   border-radius: 4px; display: block; margin-bottom: 2px;
 }
-.preset-go:hover:not(:disabled) { border-color: var(--success); color: var(--success); }
+.preset-go:hover:not(:disabled) { background: var(--surface3); color: var(--success); }
 .preset-go:active:not(:disabled) { transform: scale(0.96); }
 .preset-go:disabled { opacity: 0.35; cursor: not-allowed; }
-.preset-slot.active .preset-go { border-color: var(--accent); }
-.preset-slot.active .preset-go:hover:not(:disabled) { border-color: var(--success); color: var(--success); }
 .preset-go-num  { font-size: 0.95rem; font-weight: 700; color: var(--accent2); line-height: 1; }
 .preset-go-name { font-size: 0.75rem; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; text-align: center; }
-.preset-go:hover:not(:disabled) .preset-go-num,
 .preset-go:hover:not(:disabled) .preset-go-name { color: var(--success); }
 
 /* Edit buttons row — hidden by default */
