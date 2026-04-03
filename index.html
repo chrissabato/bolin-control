@@ -217,7 +217,6 @@ body.preset-mode .presets-grid { grid-template-columns: repeat(4, 1fr); }
 <div class="header">
   <h1>Bolin EXU-230NX &mdash; PTZ Controller</h1>
   <div style="display:flex;align-items:center;gap:10px">
-    <button class="btn btn-sm" id="presetModeBtn" onclick="togglePresetMode()" style="display:none">Presets Only</button>
     <button class="btn btn-sm btn-danger" id="headerDisconnBtn" onclick="disconnect()" style="display:none">Disconnect</button>
     <div class="conn-badge">
       <div class="dot" id="dot"></div>
@@ -352,6 +351,7 @@ body.preset-mode .presets-grid { grid-template-columns: repeat(4, 1fr); }
         <div style="display:flex;gap:6px">
           <button class="btn btn-sm" onclick="loadPresets()">Refresh</button>
           <button class="btn btn-sm" id="editToggleBtn" onclick="toggleEditMode()">Edit</button>
+          <button class="btn btn-sm" id="presetModeBtn" onclick="togglePresetMode()" style="display:none">Presets Only</button>
         </div>
       </div>
       <div class="presets-grid" id="presetsGrid"></div>
